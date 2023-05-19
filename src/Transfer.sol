@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
-
 pragma solidity >=0.7.0 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+/* 
+    Deployment:
+    - Optimizator   unabled: 283972 gas
+ 	                enabled: 172786 gas
+*/
 contract Owner {
     address private owner;
 
@@ -16,6 +20,7 @@ contract Owner {
         _;
     }
 
+    // sol: 2319 gas
     function getOwner() external view returns (address) {
         return owner;
     }
