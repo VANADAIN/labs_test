@@ -42,10 +42,6 @@ contract OwnableV1 {
 
 contract WhiteListV1 is OwnableV1 {
     error NotMember();
-
-    uint256 private constant _TRANSFER_FROM_CALL_SELECTOR_32 =
-        0x23b872dd00000000000000000000000000000000000000000000000000000000;
-
     mapping(address => bool) whiteList;
 
     modifier isWhiteListed(address addr) {
@@ -63,7 +59,6 @@ contract WhiteListV1 is OwnableV1 {
 
     function deleteFromWhiteList(address addr)
         external
-        isWhiteListed(addr)
         onlyOwner
     {
         assembly {
@@ -85,10 +80,45 @@ contract TransferV1 is OwnableV1, WhiteListV1 {
         address token,
         address to,
         uint256 amount
-    ) public payable isWhiteListed(to) {
-        IERC20(token).transferFrom(msg.sender, to, amount);
+    ) external isWhiteListed(to) {
 
-        emit ProxyDeposit(token, msg.sender , to, amount);
+        uint256 _TRANSFER_FROM_CALL_SELECTOR_32 =
+        0x23b872dd00000000000000000000000000000000000000000000000000000000;
+
+        assembly {
+            function reRevert() {
+                returndatacopy(0, 0, returndatasize())
+                revert(0, returndatasize())
+            }
+
+            let emptyPtr := mload(0x40)
+
+            mstore(emptyPtr, _TRANSFER_FROM_CALL_SELECTOR_32)
+            mstore(add(emptyPtr, 0x4), caller())
+            mstore(add(emptyPtr, 0x24), to)
+            mstore(add(emptyPtr, 0x44), amount)
+
+            if iszero(call(gas(), token, 0, emptyPtr, 0x64, 0, 0)) {
+                reRevert()
+            }
+
+            // Calculate the size of the event data
+            let eventSize := 96
+
+            // Allocate memory for the event data
+            let eventPtr := mload(0x40)
+            mstore(eventPtr, token)
+            mstore(add(eventPtr, 0x20), caller())
+            mstore(add(eventPtr, 0x40), to)
+            mstore(add(eventPtr, 0x60), amount)
+
+            // Emit the event
+            log4(eventPtr, eventSize, 0, 0, 0, 0)
+        }
+
+        // IERC20(token).transferFrom(msg.sender, to, amount);
+
+        // emit ProxyDeposit(token, msg.sender , to, amount);
     }
 }
 
