@@ -3,13 +3,7 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-/* 
-    Deployment:
-    - Optimizator   unabled: 283972 gas
- 	                enabled: 172786 gas
-*/
 contract OwnableV1 {
-    error NotOwner();
     address private owner;
 
     constructor() {
@@ -19,10 +13,10 @@ contract OwnableV1 {
     modifier onlyOwner() {
         assembly {
             if iszero(eq(caller(), sload(owner.slot))) {
-               let ptr := mload(0x40) // Get free memory pointer
+               let ptr := mload(0x40) 
                 mstore(ptr, 0x08c379a000000000000000000000000000000000000000000000000000000000) // Selector for method Error(string)
                 mstore(add(ptr, 0x04), 0x20) // String offset
-                mstore(add(ptr, 0x24), 6) // Revert reason length
+                mstore(add(ptr, 0x24), 6) // Revert bytes
                 mstore(add(ptr, 0x44), 0x6e4f776e65720000000000000000000000000000000000000000000000000000)
                 revert(ptr, 0x64)
             }
@@ -38,52 +32,63 @@ contract OwnableV1 {
         }
     }
 
-    function setOwner(address wallet) external onlyOwner returns (address) {
-        owner = wallet;
-        return owner;
+    function setOwner(address wallet) external onlyOwner returns (address r) {
+        assembly {
+            sstore(owner.slot, wallet)  
+            r := wallet
+        }
     }
 }
 
 contract WhiteListV1 is OwnableV1 {
-    mapping(address => uint16) whiteList;
+    error NotMember();
 
-    modifier checkOfWhiteLists(address adr) {
-        require(checkOfWhiteList(adr) == 0, "Not WhiteList");
+    uint256 private constant _TRANSFER_FROM_CALL_SELECTOR_32 =
+        0x23b872dd00000000000000000000000000000000000000000000000000000000;
+
+    mapping(address => bool) whiteList;
+
+    modifier isWhiteListed(address addr) {
+        if(!whiteList[addr]) {
+            revert NotMember();
+        }
         _;
     }
 
-    function checkOfWhiteList(address adr) private view returns (uint16) {
-        if (whiteList[adr] > 0) {
-            return whiteList[adr];
+    function checkMembership(address addr) public view returns (bool value) {
+        assembly {
+            value := sload(add(whiteList.slot, mul(addr, 0x20)))
         }
-
-        return 0;
     }
 
-    function deleteFromWhiteList(address adr)
-        public
-        checkOfWhiteLists(adr)
+    function deleteFromWhiteList(address addr)
+        external
+        isWhiteListed(addr)
         onlyOwner
     {
-        delete whiteList[adr];
+        assembly {
+            sstore(add(whiteList.slot, mul(addr, 0x20)), 0)
+        }
     }
 
-    function addWhiteList(address adr) external onlyOwner {
-        whiteList[adr] = 1;
+    function addWhiteList(address addr) external onlyOwner {
+        assembly {
+            sstore(add(whiteList.slot, mul(addr, 0x20)), 1)
+        }
     }
 }
 
 contract TransferV1 is OwnableV1, WhiteListV1 {
-    event ProxyDeposit(address token, address from, address to, uint256 amount);
+    event ProxyDeposit(address token, address indexed from, address to, uint256 amount);
 
     function proxyToken(
         address token,
         address to,
         uint256 amount
-    ) public payable checkOfWhiteLists(to) {
+    ) public payable isWhiteListed(to) {
         IERC20(token).transferFrom(msg.sender, to, amount);
 
-        emit ProxyDeposit(token, msg.sender, to, amount);
+        emit ProxyDeposit(token, msg.sender , to, amount);
     }
 }
 
