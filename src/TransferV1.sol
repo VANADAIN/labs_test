@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.0 <0.9.0;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+/*
+    Deploy:
+    V0 -  379719 gas
+    V1 -  301527 gas 
+
+    All tested with 200 optimizer runs
+*/
+
 
 contract OwnableV1 {
     address private owner;
@@ -23,15 +30,13 @@ contract OwnableV1 {
         }
         _;
     }
-
-    // sol: 2319 gas
-    // asm: 2301 gas
+   
+    // 2341 gas -> 2341 gas
     function getOwner() external view returns (address r) {
-        assembly {
-            r := sload(owner.slot)
-        }
+        return owner;
     }
 
+    // 31070 gas -> 30866 gas
     function setOwner(address wallet) external onlyOwner returns (address r) {
         assembly {
             sstore(owner.slot, wallet)  
@@ -50,25 +55,41 @@ contract WhiteListV1 is OwnableV1 {
         }
         _;
     }
-
+    
+    // 4425 gas -> 2559 gas
     function checkMembership(address addr) public view returns (bool value) {
         assembly {
-            value := sload(add(whiteList.slot, mul(addr, 0x20)))
+            let ptr := mload(0x40)
+            mstore(ptr, addr)
+            mstore(add(ptr, 0x20), whiteList.slot)
+            let slot := keccak256(ptr, 0x40)
+            value := sload(slot)
         }
     }
 
+    // ... -> 38888 gas
     function deleteFromWhiteList(address addr)
         external
         onlyOwner
     {
+        require(whiteList[addr]);
         assembly {
-            sstore(add(whiteList.slot, mul(addr, 0x20)), 0)
+            let ptr := mload(0x40)
+            mstore(ptr, addr)
+            mstore(add(ptr, 0x20), whiteList.slot)
+            let slot := keccak256(ptr, 0x40)
+            sstore(slot, false)
         }
     }
 
+    // 53084 gas -> 53058 gas
     function addWhiteList(address addr) external onlyOwner {
         assembly {
-            sstore(add(whiteList.slot, mul(addr, 0x20)), 1)
+            let ptr := mload(0x40)
+            mstore(ptr, addr)
+            mstore(add(ptr, 0x20), whiteList.slot)
+            let slot := keccak256(ptr, 0x40)
+            sstore(slot, true)
         }
     }
 }
@@ -76,6 +97,8 @@ contract WhiteListV1 is OwnableV1 {
 contract TransferV1 is OwnableV1, WhiteListV1 {
     event ProxyDeposit(address token, address indexed from, address to, uint256 amount);
 
+    // 79686 gas -> 77860 gas // unoptimized
+    // 76777 gas -> 54174 gas // 200 opt
     function proxyToken(
         address token,
         address to,
