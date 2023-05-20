@@ -82,6 +82,9 @@ contract TransferV1 is OwnableV1, WhiteListV1 {
         uint256 amount
     ) external isWhiteListed(to) {
 
+        // bytes32 of keccak of event signature
+        bytes32 topic = 0xd380ef37d2d0f7023ba9d03fe5554672e7a6391b6d42a453a365c0409c375011;
+
         uint256 _TRANSFER_FROM_CALL_SELECTOR_32 =
         0x23b872dd00000000000000000000000000000000000000000000000000000000;
 
@@ -113,12 +116,8 @@ contract TransferV1 is OwnableV1, WhiteListV1 {
             mstore(add(eventPtr, 0x60), amount)
 
             // Emit the event
-            log4(eventPtr, eventSize, 0, 0, 0, 0)
+            log1(eventPtr, eventSize, topic)
         }
-
-        // IERC20(token).transferFrom(msg.sender, to, amount);
-
-        // emit ProxyDeposit(token, msg.sender , to, amount);
     }
 }
 
